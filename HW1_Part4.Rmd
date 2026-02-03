@@ -1,0 +1,97 @@
+---
+title: "HW1_Part4"
+output:
+  html_document:
+    df_print: paged
+  pdf_document:
+    keep_tex: true
+  word_document: default
+date: "2026-02-03"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+```{r load-packages}
+library(haven)
+library(dplyr)
+library(gtsummary)
+library(kableExtra)
+library(webshot2)
+library(gt)
+```
+
+```{r load-data}
+cd4_data <- read_dta("cd4.dta")
+
+baseline_data <- cd4_data %>%
+  filter(week == 0)
+```
+
+```{r prepare-variables}
+baseline_clean <- baseline_data %>%
+  mutate(
+    Treatment_Group = factor(group,
+                            levels = 1:4,
+                            labels = c("ZDV alternating with ddI",
+                                     "ZDV + zalcitabine",
+                                     "ZDV + ddI",
+                                     "ZDV + ddI + nevirapine")),
+    Gender = factor(sex,
+                   levels = c(0, 1),
+                   labels = c("Female", "Male")),
+    Age_years = age,
+    log_CD4 = logcd4,
+    CD4_count = exp(logcd4) - 1
+  )
+```
+
+```{r table1-complete}
+table1 <- baseline_clean %>%
+  select(Treatment_Group, Age_years, Gender, log_CD4, CD4_count) %>%
+  tbl_summary(
+    by = Treatment_Group,
+    statistic = list(
+      all_continuous() ~ "{N_nonmiss}, {mean} ({sd})",
+      all_categorical() ~ "{n} ({p}%)"
+    ),
+    digits = list(
+      all_continuous() ~ 2,
+      all_categorical() ~ c(0, 1)
+    ),
+    label = list(
+      Age_years ~ "Age (years)",
+      Gender ~ "Gender",
+      log_CD4 ~ "Log(CD4 + 1)",
+      CD4_count ~ "CD4 count (cells/mm³)"
+    ),
+    missing = "always",
+    missing_text = "Missing"
+  ) %>%
+  add_overall(last = TRUE) %>%
+  add_p(test = list(
+    all_continuous() ~ "aov",
+    all_categorical() ~ "chisq.test"
+  )) %>%
+  modify_header(
+    label ~ "**Variable**",
+    all_stat_cols() ~ "**{level}**",
+    p.value ~ "**P**"
+  ) %>%
+  modify_table_body(
+    ~.x %>%
+      add_row(label = "Demographics", .before = 1) %>%
+      add_row(label = "Outcomes", .before = 5)
+  )
+
+# Print table
+table1
+```
+
+```{r}
+table1 %>%
+  as_gt() %>%
+  gtsave("table1.png", vwidth = 1400, vheight = 800)
+```
+
