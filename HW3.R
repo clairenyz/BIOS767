@@ -41,3 +41,26 @@ time_points <- c("0", "8", "16", "24", "32", "40")
 idata <- data.frame(Time = factor(time_points, levels = time_points))
 manova_results <- Anova(lm_model, idata = idata, idesign = ~Time, type = "III")
 print(manova_results)
+
+library(ggplot2)
+
+# 1. Prepare data for plotting
+# Calculate group means per week
+mean_data <- cd4_wide_complete %>%
+  pivot_longer(cols = starts_with("Week"), 
+               names_to = "Week", 
+               values_to = "LogCD4") %>%
+  mutate(WeekNum = as.numeric(gsub("Week", "", Week))) %>%
+  group_by(Treatment, WeekNum) %>%
+  summarise(Mean_LogCD4 = mean(LogCD4), .groups = "drop")
+
+
+sp_plot <- ggplot(cd4_data_clean %>% filter(SubjectID %in% cd4_wide_complete$SubjectID), 
+       aes(x = ScheduledWeek, y = LogCD4, color = factor(Treatment))) +
+  geom_line(aes(group = SubjectID), alpha = 0.2) + 
+  geom_line(data = mean_data, aes(x = WeekNum, y = Mean_LogCD4, group = Treatment), linewidth = 1.5) +
+  geom_point(data = mean_data, aes(x = WeekNum, y = Mean_LogCD4)) +
+  facet_wrap(~Treatment, labeller = label_both) +
+  labs(title = "Individual Trajectories and Fitted Mean Structure",
+       x = "Week", y = "Log(CD4 + 1)", color = "Treatment") +
+  theme_minimal()
