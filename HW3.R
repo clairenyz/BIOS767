@@ -64,3 +64,34 @@ sp_plot <- ggplot(cd4_data_clean %>% filter(SubjectID %in% cd4_wide_complete$Sub
   labs(title = "Individual Trajectories and Fitted Mean Structure",
        x = "Week", y = "Log(CD4 + 1)", color = "Treatment") +
   theme_minimal()
+
+ggsave(sp_plot, filename = "sp.png", width = 8, height = 6)
+
+library(nlme)
+library(dplyr)
+
+# 1. Prepare data (ensure it is in long format)
+# Assuming 'cd4_data_clean' contains SubjectID, Treatment, 
+# ScheduledWeek, LogCD4, Age, and Gender
+cd4_long <- cd4_data_clean %>%
+  mutate(Treatment = factor(Treatment),
+         Gender = factor(Gender),
+         Time = ScheduledWeek)
+
+
+# 2. Fit the General Linear Model using REML
+# Fixed effects: Treatment-specific intercepts and slopes, Age, and Gender
+# Correlation/Variance: Unstructured covariance matrix (type = "un")
+library(nlme)
+library(dplyr)
+gls_model <- gls(LogCD4 ~ Treatment + Treatment:Time + Age + Gender,
+                 data = cd4_long,
+                 correlation = corSymm(form = ~ 1 | SubjectID), 
+                 weights = varIdent(form = ~ 1 | Time),     
+                 method = "REML",
+                 na.action = na.omit)
+
+summary(gls_model)$tTable
+summary(gls_model)$modelStruct
+corMatrix(gls_model$modelStruct$corStruct)[[1]]
+getVarCov(gls_model)
