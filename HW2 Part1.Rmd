@@ -1,0 +1,67 @@
+---
+title: "HW2 Part1"
+author: "Chunyu Luo"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r}
+library(dplyr)
+library(tidyr)
+library(car)
+
+cd4_data <- read.table("CD4_data_Toread.txt", header = T, sep = "")
+colnames(cd4_data) <- c("SubjectID", "Treatment", "Age", "Gender", "Week", "LogCD4")
+cd4_data$Treatment <- factor(cd4_data$Treatment)
+cd4_data$SubjectID <- factor(cd4_data$SubjectID)
+```
+
+```{r}
+cd4_data$ScheduledWeek <- cut(cd4_data$Week,
+                      breaks = c(-1, 4, 12, 20, 28, 36, 44),
+                      labels = c(0, 8, 16, 24, 32, 40))
+
+# Descriptive statistics
+desc_table <- cd4_data %>%
+  group_by(Treatment, ScheduledWeek) %>%
+  summarise(
+    Mean_LogCD4 = mean(LogCD4, na.rm = TRUE),
+    SD_LogCD4 = sd(LogCD4, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  arrange(Treatment, ScheduledWeek)
+
+desc_table
+```
+
+```{r}
+# Interaction Plot
+library(ggplot2)
+
+mean_data <- cd4_data %>%
+  group_by(Treatment, ScheduledWeek) %>%
+  summarise(
+    Mean_LogCD4 = mean(LogCD4, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+ggplot(mean_data,
+       aes(x = as.numeric(as.character(ScheduledWeek)),
+           y = Mean_LogCD4,
+           color = factor(Treatment),
+           group = Treatment)) +
+  geom_line(size = 1.2) +
+  geom_point(size = 2) +
+  labs(
+    x = "Week",
+    y = "Mean Log(CD4)",
+    color = "Treatment Group",
+    title = "Mean Log(CD4) Over Time by Treatment Group"
+  ) +
+  theme_minimal()
+
+ggsave("interaction_plot.pdf",
+       width = 6,
+       height = 4)
+```
+  
