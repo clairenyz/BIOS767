@@ -1,0 +1,126 @@
+---
+title: "Bios767HW5Part3"
+author: "Chunyu Luo"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r}
+library(nlme)
+library(dplyr)
+
+# 1. Load and Prepare Data (Using your standard processing)
+cd4_data <- read.table("CD4_data_Toread.txt", header = TRUE, sep = "")
+colnames(cd4_data) <- c("SubjectID", "Treatment", "Age", "Gender", "Week", "LogCD4")
+
+cd4_long <- cd4_data %>%
+  mutate(Treatment = factor(Treatment),
+         Gender = factor(Gender),
+         Time = round(Week / 8) * 8) %>%
+  filter(Time <= 40) %>%
+  group_by(SubjectID, Time) %>%
+  dplyr::slice(1) %>%      
+  ungroup() %>%
+  na.omit()
+
+# ---------------------------------------------------------
+# PART 1: FIT CANDIDATE LINEAR MIXED MODELS
+# ---------------------------------------------------------
+
+# Model 1: Random Intercept Only
+# Assumes subjects start at different baseline CD4 levels, but change at the same rate.
+m_intercept <- lme(LogCD4 ~ Treatment * Time + Age + Gender,
+                   random = ~ 1 | SubjectID,
+                   data = cd4_long,
+                   method = "REML")
+
+# Model 2: Random Intercept and Slope
+# Assumes subjects start at different baseline levels AND change at different rates over time.
+m_slope <- lme(LogCD4 ~ Treatment * Time + Age + Gender,
+               random = ~ 1 + Time | SubjectID,
+               data = cd4_long,
+               method = "REML")
+
+# ---------------------------------------------------------
+# PART 2: EVALUATING RANDOM EFFECTS
+# ---------------------------------------------------------
+
+# 1. Testing the Random Effects (Likelihood Ratio Test)
+# Compare the random intercept model to the random slope model
+cat("\n--- Likelihood Ratio Test for Random Effects ---\n")
+anova_results <- anova(m_intercept, m_slope)
+print(anova_results)
+
+# 2. Extract Fixed Effects and Variance Components for preferred model
+cat("\n--- Fixed Effects Estimates (m_slope) ---\n")
+print(summary(m_slope)$tTable)
+
+cat("\n--- Estimated Variance Components (D Matrix) ---\n")
+print(getVarCov(m_slope))
+
+cat("\n--- Estimated Residual Variance (Within-Subject) ---\n")
+print(m_slope$sigma^2)
+```
+
+```{r}
+# ---------------------------------------------------------
+# PART 3: Subject-Specific Predictions
+# ---------------------------------------------------------
+# BLUPs
+blups <- ranef(m_slope)
+blups_df <- data.frame(
+  SubjectID = rownames(blups),
+  RandomIntercept = blups[, "(Intercept)"],
+  RandomSlope = blups[, "Time"]
+)
+
+head(blups_df)
+```
+
+```{r}
+ord_int <- order(blups_df$RandomIntercept)
+blups_int <- blups_df[ord_int, ]
+
+ord_slope <- order(blups_df$RandomSlope)
+blups_slope <- blups_df[ord_slope, ]
+
+par(mfrow = c(1, 2), mar = c(4, 4, 2, 1))
+
+plot(blups_int$RandomIntercept,
+     type = "h",
+     lwd = 2,
+     xlab = "Ordered Subjects",
+     ylab = "BLUP: Random Intercept",
+     main = "Random Intercepts")
+abline(h = 0, lty = 2, col = "red")
+
+plot(blups_slope$RandomSlope,
+     type = "h",
+     lwd = 2,
+     xlab = "Ordered Subjects",
+     ylab = "BLUP: Random Slope for Time",
+     main = "Random Slopes")
+abline(h = 0, lty = 2, col = "red")
+```
+
+```{r}
+# Subject-specific Trajectories
+set.seed(123)
+sub_ids <- sample(unique(cd4_long$SubjectID), 6)
+
+subset_data <- cd4_long[cd4_long$SubjectID %in% sub_ids, ]
+cd4_long$Fitted <- predict(m_slope, level = 1)
+subset_data <- cd4_long[cd4_long$SubjectID %in% sub_ids, ]
+
+library(ggplot2)
+
+ggplot(subset_data, aes(x = Time, y = LogCD4)) +
+  geom_point(color = "black") +
+  geom_line(aes(y = Fitted), color = "blue") +
+  facet_wrap(~ SubjectID) +
+  labs(title = "Observed vs Subject-Specific Fitted Trajectories",
+       x = "Time",
+       y = "Log CD4") +
+  theme_bw()
+```
+
