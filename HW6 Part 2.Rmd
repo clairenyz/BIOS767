@@ -1,0 +1,56 @@
+---
+title: "HW6"
+author: "Chunyu Luo"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r}
+library(nlme)
+library(dplyr)
+
+cd4_data <- read.table("CD4_data_Toread.txt", header = TRUE, sep = "")
+colnames(cd4_data) <- c("SubjectID", "Treatment", "Age", "Gender", "Week", "LogCD4")
+
+cd4_long <- cd4_data %>%
+  mutate(Treatment = factor(Treatment),
+         Gender = factor(Gender),
+         Time = round(Week / 8) * 8) %>%
+  filter(Time <= 40) %>%
+  group_by(SubjectID, Time) %>%
+  dplyr::slice(1) %>%      
+  ungroup() %>%
+  na.omit()
+```
+
+```{r}
+# ---------------------------------------------------------
+# PART 2: Working Correlation Structure
+# ---------------------------------------------------------
+library(geepack)
+
+# GEE with independence working correlation
+gee_ind <- geeglm(
+  LogCD4 ~ Time + Treatment + Age + Gender,
+  id = SubjectID,
+  data = cd4_long,
+  family = gaussian(link = "identity"),
+  corstr = "independence"
+  )
+
+# GEE with exchangeable working correlation
+
+gee_exch <- geeglm(
+  LogCD4 ~ Time + Treatment + Age + Gender,
+  id = SubjectID,
+  data = cd4_long,
+  family = gaussian(link = "identity"),
+  corstr = "exchangeable"
+  )
+
+summary(gee_ind)
+summary(gee_exch)
+coef(gee_ind)
+coef(gee_exch)
+```
+
