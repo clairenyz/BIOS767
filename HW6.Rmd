@@ -54,3 +54,31 @@ coef(gee_ind)
 coef(gee_exch)
 ```
 
+
+```{r}
+# Load geepack for GEE modeling
+library(geepack)
+
+# Assuming cd4_long is already created from your teammate's code
+
+# Fit the selected Exchangeable GEE model using geeglm
+gee_exch <- geeglm(LogCD4 ~ Time + Treatment + Age + Gender, 
+                   id = SubjectID, 
+                   data = cd4_long, 
+                   family = gaussian(link = "identity"), 
+                   corstr = "exchangeable")
+
+# PART 3: Extract Naive (Model-based) and Robust (Sandwich) Standard Errors
+# The summary output will display "Estimate", "Std.err" (Robust), and "Wald"
+# To see BOTH Naive and Robust standard errors side-by-side:
+summary(gee_exch)
+
+# PART 4: Hypothesis Testing
+# To test the overall effect of a categorical variable with >2 levels (like Treatment),
+# we use a Wald test via the anova() function.
+anova(gee_exch)
+
+# Extract Naive (Model-based) Standard Errors
+naive_se <- sqrt(diag(gee_exch$geese$vbeta.naiv))
+round(naive_se, 4)
+```
